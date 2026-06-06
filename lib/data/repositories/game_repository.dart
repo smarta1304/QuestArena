@@ -19,9 +19,11 @@ class GameRepository {
     try {
       final response = await _dio.get("https://opentdb.com/api.php?amount=10&type=multiple");
       questions = (response.data['results'] as List).map((q) => {
-        'question': q['question'],
-        'correct_answer': q['correct_answer'],
-        'incorrect_answers': List<String>.from(q['incorrect_answers']),
+        'question': GameUtils.decodeHtmlEntities(q['question']),
+        'correct_answer': GameUtils.decodeHtmlEntities(q['correct_answer']),
+        'incorrect_answers': (q['incorrect_answers'] as List)
+            .map((a) => GameUtils.decodeHtmlEntities(a))
+            .toList(),
       }).toList();
     } catch (e) {
       print("Trivia API Error: $e");

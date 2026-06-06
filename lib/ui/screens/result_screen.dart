@@ -37,34 +37,44 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
     // Avoid double processing if already handled in this session
     if (_rewardsClaimed) return;
 
-    final currentUser = ref.read(currentUserProvider).value;
-    if (currentUser == null) return;
+    try {
+      final currentUser = ref.read(currentUserProvider).value;
+      if (currentUser == null) {
+        // If user is null, wait a bit and try again (stream might be initializing)
+        await Future.delayed(const Duration(seconds: 1));
+        _handleRewards();
+        return;
+      }
 
-    // Check if Firestore already says we claimed it
-    if (widget.room.claimedRewards.contains(currentUser.uid)) {
-      if (mounted) setState(() => _rewardsClaimed = true);
-      return;
-    }
+      // Check if Firestore already says we claimed it
+      if (widget.room.claimedRewards.contains(currentUser.uid)) {
+        if (mounted) setState(() => _rewardsClaimed = true);
+        return;
+      }
 
-    final isWinner = widget.room.winnerId == currentUser.uid;
-    
-    // 1. Update User Stats in Firestore
-    await ref.read(userRepositoryProvider).updateUserStats(
-      uid: currentUser.uid,
-      xpGained: isWinner ? 50 : 15,
-      coinsGained: isWinner ? 20 : 5,
-      isWin: isWinner,
-    );
+      final isWinner = widget.room.winnerId == currentUser.uid;
+      
+      // 1. Update User Stats in Firestore
+      await ref.read(userRepositoryProvider).updateUserStats(
+        uid: currentUser.uid,
+        xpGained: isWinner ? 50 : 15,
+        coinsGained: isWinner ? 20 : 5,
+        isWin: isWinner,
+      );
 
-    // 2. Mark as claimed in the Game Room doc
-    await ref.read(gameRepositoryProvider).claimRewards(
-      widget.room.roomId,
-      currentUser.uid,
-      isWinner,
-    );
-
-    if (mounted) {
-      setState(() => _rewardsClaimed = true);
+      // 2. Mark as claimed in the Game Room doc
+      await ref.read(gameRepositoryProvider).claimRewards(
+        widget.room.roomId,
+        currentUser.uid,
+        isWinner,
+      );
+    } catch (e) {
+      print('Error claiming rewards: $e');
+      // We still set to true so the user can go home even if update fails
+    } finally {
+      if (mounted) {
+        setState(() => _rewardsClaimed = true);
+      }
     }
   }
 
