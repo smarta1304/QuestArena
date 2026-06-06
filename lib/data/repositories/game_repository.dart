@@ -2,23 +2,40 @@
 // Manages the real-time state of a specific game session.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dio/dio.dart';
 import '../../core/utils/game_utils.dart';
 import '../models/game_room_model.dart';
 
 class GameRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final _dio = Dio();
 
   // Create a private room
   Future<String> createPrivateRoom(Map<String, dynamic> player1Data, String code) async {
     final roomId = _db.collection('gameRooms').doc().id;
+    
+    // Fetch questions from client side since Cloud Functions are not available on Spark plan
+    List<Map<String, dynamic>> questions = [];
+    try {
+      final response = await _dio.get("https://opentdb.com/api.php?amount=10&type=multiple");
+      questions = (response.data['results'] as List).map((q) => {
+        'question': q['question'],
+        'correct_answer': q['correct_answer'],
+        'incorrect_answers': List<String>.from(q['incorrect_answers']),
+      }).toList();
+    } catch (e) {
+      print("Trivia API Error: $e");
+      questions = GameUtils.getFallbackQuestions();
+    }
+
     await _db.collection('gameRooms').doc(roomId).set({
       'roomId': roomId,
       'roomCode': code,
-      'status': 'fetching_questions',
+      'status': 'waiting',
       'player1': {...player1Data, 'isReady': false, 'score': 0, 'answers': []},
       'player2': null,
       'createdAt': FieldValue.serverTimestamp(),
-      'questions': [], // Let Cloud Functions populate this
+      'questions': questions,
     });
     return roomId;
   }
@@ -77,37 +94,50 @@ class GameRepository {
       final snapshot = await transaction.get(roomRef);
       if (!snapshot.exists) return;
 
+      final data = snapshot.data() as Map<String, dynamic>;
       final playerKey = 'player$playerNumber';
-      final currentScore = snapshot.get('$playerKey.score') ?? 0;
-      final currentAnswers = List<String>.from(snapshot.get('$playerKey.answers') ?? []);
       
-      currentAnswers.add(answer);
+      final player1 = data['player1'] as Map<String, dynamic>;
+      final player2 = data['player2'] as Map<String, dynamic>?;
+
+      if (player2 == null) return; // Can't progress without both players
+
+      final currentP1Answers = List<String>.from(player1['answers'] ?? []);
+      final currentP2Answers = List<String>.from(player2['answers'] ?? []);
       
+      final currentIdx = data['currentQuestionIndex'] ?? 0;
+      final questions = List<dynamic>.from(data['questions'] ?? []);
+
+      // 1. Update current player's answers and score
+      final updatedAnswers = playerNumber == 1 ? currentP1Answers : currentP2Answers;
+      
+      // Safety: Don't add more answers than there are questions or if already answered this index
+      if (updatedAnswers.length > currentIdx) return; 
+
+      updatedAnswers.add(answer);
+      final oldScore = (playerNumber == 1 ? player1['score'] : player2['score']) ?? 0;
+      final newScore = oldScore + scoreIncrement;
+
       transaction.update(roomRef, {
-        '$playerKey.score': currentScore + scoreIncrement,
-        '$playerKey.answers': currentAnswers,
+        '$playerKey.answers': updatedAnswers,
+        '$playerKey.score': newScore,
       });
 
-      // Check if both players have finished the current question
-      final updatedSnapshot = await transaction.get(roomRef);
-      final p1Answers = List<String>.from(updatedSnapshot.get('player1.answers') ?? []);
-      final p2Answers = List<String>.from(updatedSnapshot.get('player2.answers') ?? []);
-      final currentIdx = updatedSnapshot.get('currentQuestionIndex') ?? 0;
-      final questions = List<dynamic>.from(updatedSnapshot.get('questions') ?? []);
+      // 2. Check if we should move to the next question
+      final p1Len = playerNumber == 1 ? updatedAnswers.length : currentP1Answers.length;
+      final p2Len = playerNumber == 2 ? updatedAnswers.length : currentP2Answers.length;
 
-      // If both players have answered the current question
-      if (p1Answers.length > currentIdx && p2Answers.length > currentIdx) {
+      if (p1Len > currentIdx && p2Len > currentIdx) {
         if (currentIdx + 1 < questions.length) {
-          // Move to next question
           transaction.update(roomRef, {'currentQuestionIndex': currentIdx + 1});
         } else {
-          // Game Finished!
-          final p1Score = updatedSnapshot.get('player1.score') ?? 0;
-          final p2Score = updatedSnapshot.get('player2.score') ?? 0;
+          // Game Finished
+          final p1Score = playerNumber == 1 ? newScore : (player1['score'] ?? 0);
+          final p2Score = playerNumber == 2 ? newScore : (player2['score'] ?? 0);
           
           String winnerId = 'draw';
-          if (p1Score > p2Score) winnerId = updatedSnapshot.get('player1.uid');
-          if (p2Score > p1Score) winnerId = updatedSnapshot.get('player2.uid');
+          if (p1Score > p2Score) winnerId = player1['uid'];
+          if (p2Score > p1Score) winnerId = player2['uid'];
 
           transaction.update(roomRef, {
             'status': 'finished',
@@ -123,6 +153,22 @@ class GameRepository {
     await _db.collection('gameRooms').doc(roomId).update({
       'questions': GameUtils.getFallbackQuestions(),
       'status': 'waiting',
+    });
+  }
+
+  // Claim match rewards
+  Future<void> claimRewards(String roomId, String userId, bool isWin) async {
+    final roomRef = _db.collection('gameRooms').doc(roomId);
+    
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) return;
+
+      final claimed = List<String>.from(snapshot.get('claimedRewards') ?? []);
+      if (claimed.contains(userId)) return; // Already claimed
+
+      claimed.add(userId);
+      transaction.update(roomRef, {'claimedRewards': claimed});
     });
   }
 }

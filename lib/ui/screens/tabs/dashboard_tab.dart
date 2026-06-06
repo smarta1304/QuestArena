@@ -6,12 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../providers/user_providers.dart';
-
-import '../matchmaking_screen.dart';
-import '../store_screen.dart';
-import '../../../data/models/matchmaking_model.dart';
 import '../../../providers/matchmaking_providers.dart';
-
+import '../store_screen.dart';
+import '../matchmaking_screen.dart';
+import '../../../data/models/matchmaking_model.dart';
 import '../../../core/utils/rank_calculator.dart';
 
 class DashboardTab extends ConsumerWidget {
@@ -19,336 +17,291 @@ class DashboardTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider).value;
+    final userAsync = ref.watch(currentUserProvider);
 
-    if (user == null) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
+    return userAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.gold),
+      ),
+      error: (e, s) => Center(child: Text('Error: $e')),
+      data: (user) {
+        if (user == null) {
+          return const Center(child: Text('User profile not found.'));
+        }
 
-    final rankColor = RankCalculator.getRankColor(user.rank);
+        final rankColor = RankCalculator.getRankColor(user.rank);
+        final totalMatches = user.totalWins + user.totalLosses;
+        final winRate = totalMatches == 0
+            ? 0
+            : ((user.totalWins / totalMatches) * 100).round();
 
-    final totalMatches = user.totalWins + user.totalLosses;
-
-    final winRate = totalMatches == 0
-        ? 0
-        : ((user.totalWins / totalMatches) * 100).round();
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          // TOP BAR
-          Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'DASHBOARD',
-              style: AppTextStyles.headline.copyWith(
-                fontSize: 18,
-              ),
-            ),
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const StoreScreen(),
-                ),
-              ),
-              icon: const Icon(
-                Icons.shopping_bag_rounded,
-                color: AppColors.gold,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 24),
-
-        // PLAYER HEADER CARD
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.cardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: rankColor.withOpacity(0.5),
-            ),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 35,
-                backgroundColor: rankColor.withOpacity(0.1),
-                child: CircleAvatar(
-                  radius: 32,
-                  backgroundImage:
-                  NetworkImage(user.avatarUrl ?? ''),
-                ),
-              ),
-
-              const SizedBox(width: 16),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // TOP BAR
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      user.username,
-                      style: AppTextStyles.headline,
-                    ),
-
-                    Text(
-                      'Rank: ${user.rank}',
-                      style: AppTextStyles.label.copyWith(
-                        color: rankColor,
+                      'DASHBOARD',
+                      style: AppTextStyles.headline.copyWith(
+                        fontSize: 18,
                       ),
                     ),
-
-                    const SizedBox(height: 8),
-
-                    ClipRRect(
-                      borderRadius:
-                      BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value:
-                        user.xp / user.xpToNextLevel,
-                        backgroundColor:
-                        AppColors.surface,
-                        color: rankColor,
-                        minHeight: 8,
+                    IconButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const StoreScreen(),
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${user.xp}/${user.xpToNextLevel} XP',
-                          style: AppTextStyles.label,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${user.xpToNextLevel - user.xp} XP to next rank',
-                          style:
-                          AppTextStyles.label.copyWith(
-                            color: Colors.grey,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                      icon: const Icon(
+                        Icons.shopping_bag_rounded,
+                        color: AppColors.gold,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
 
-        const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
-        Text(
-          'QUICK STATS',
-          style: AppTextStyles.label,
-        ),
-
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            _StatCard(
-              label: 'WINS',
-              value: user.totalWins.toString(),
-              color: AppColors.teal,
-            ),
-
-            const SizedBox(width: 8),
-
-            _StatCard(
-              label: 'LOSSES',
-              value: user.totalLosses.toString(),
-              color: AppColors.red,
-            ),
-
-            const SizedBox(width: 8),
-
-            _StatCard(
-              label: 'WIN %',
-              value: '$winRate%',
-              color: AppColors.gold,
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 32),
-
-        // BATTLE BUTTON
-        GestureDetector(
-          onTap: () async {
-            final ticket = MatchmakingModel(
-              uid: user.uid,
-              username: user.username,
-              avatarUrl: user.avatarUrl,
-              rank: user.rank,
-              searchStartedAt: DateTime.now(),
-            );
-
-            await ref
-                .read(matchmakingRepositoryProvider)
-                .startSearching(ticket);
-
-            if (context.mounted) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                  const MatchmakingScreen(),
-                ),
-              );
-            }
-          },
-          child: Container(
-            height: 140,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  AppColors.purple,
-                  Color(0xFF5A3EBC),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius:
-              BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.purple
-                      .withOpacity(0.5),
-                  blurRadius: 30,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -20,
-                  bottom: -20,
-                  child: Icon(
-                    Icons.flash_on_rounded,
-                    size: 120,
-                    color: Colors.white
-                        .withOpacity(0.1),
+                // PLAYER HEADER CARD
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: rankColor.withOpacity(0.5),
+                    ),
                   ),
-                ),
-                Center(
-                  child: Column(
-                    mainAxisAlignment:
-                    MainAxisAlignment.center,
+                  child: Row(
                     children: [
-                      const Icon(
-                        Icons.play_arrow_rounded,
-                        size: 40,
-                        color: Colors.white,
+                      CircleAvatar(
+                        radius: 35,
+                        backgroundColor: rankColor.withOpacity(0.1),
+                        child: CircleAvatar(
+                          radius: 32,
+                          backgroundImage: NetworkImage(user.avatarUrl ?? ''),
+                        ),
                       ),
-                      Text(
-                        'BATTLE NOW',
-                        style: AppTextStyles.display
-                            .copyWith(
-                          color: Colors.white,
-                          fontSize: 24,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.username,
+                              style: AppTextStyles.headline,
+                            ),
+                            Text(
+                              'Rank: ${user.rank}',
+                              style: AppTextStyles.label.copyWith(
+                                color: rankColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: user.xp / user.xpToNextLevel,
+                                backgroundColor: AppColors.surface,
+                                color: rankColor,
+                                minHeight: 8,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Level ${user.level} - ${user.xp}/${user.xpToNextLevel} XP',
+                              style: AppTextStyles.label,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
 
-        const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-        Text(
-          'RECENT HISTORY',
-          style: AppTextStyles.label,
-        ),
+                Text(
+                  'QUICK STATS',
+                  style: AppTextStyles.label,
+                ),
 
-        const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-        ListView.separated(
-            shrinkWrap: true,
-            physics:
-            const NeverScrollableScrollPhysics(),
-            itemCount: 2,
-            separatorBuilder: (_, __) =>
-            const SizedBox(height: 12),
-        itemBuilder: (context, index) => Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardBg,
-            borderRadius:
-            BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                index == 0
-                    ? Icons.emoji_events_rounded
-                    : Icons.close_rounded,
-                color: index == 0
-                    ? AppColors.teal
-                    : AppColors.red,
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      index == 0
-                          ? 'Won against ProGamer'
-                          : 'Lost to QuizMaster',
-                      style:
-                      AppTextStyles.bodyMd,
+                    _StatCard(
+                      label: 'WINS',
+                      value: user.totalWins.toString(),
+                      color: AppColors.teal,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '2 mins ago',
-                      style: AppTextStyles.label
-                          .copyWith(
-                        color: Colors.grey,
-                        fontSize: 11,
-                      ),
+                    const SizedBox(width: 8),
+                    _StatCard(
+                      label: 'LOSSES',
+                      value: user.totalLosses.toString(),
+                      color: AppColors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    _StatCard(
+                      label: 'WIN %',
+                      value: '$winRate%',
+                      color: AppColors.gold,
                     ),
                   ],
                 ),
-              ),
 
-              Text(
-                index == 0
-                    ? '+50 XP'
-                    : '+15 XP',
-                style: AppTextStyles.label,
-              ),
-            ],
+                const SizedBox(height: 32),
+
+                // BATTLE BUTTON
+                GestureDetector(
+                  onTap: () async {
+                    final ticket = MatchmakingModel(
+                      uid: user.uid,
+                      username: user.username,
+                      avatarUrl: user.avatarUrl,
+                      rank: user.rank,
+                      searchStartedAt: DateTime.now(),
+                    );
+
+                    await ref
+                        .read(matchmakingRepositoryProvider)
+                        .startSearching(ticket);
+
+                    if (context.mounted) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MatchmakingScreen(),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    height: 140,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          AppColors.purple,
+                          Color(0xFF5A3EBC),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.purple.withOpacity(0.5),
+                          blurRadius: 30,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -20,
+                          bottom: -20,
+                          child: Icon(
+                            Icons.flash_on_rounded,
+                            size: 120,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                              Text(
+                                'BATTLE NOW',
+                                style: AppTextStyles.display.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                Text(
+                  'RECENT HISTORY',
+                  style: AppTextStyles.label,
+                ),
+
+                const SizedBox(height: 12),
+
+                // Placeholder for match history
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 2,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) => Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          index == 0
+                              ? Icons.emoji_events_rounded
+                              : Icons.close_rounded,
+                          color: index == 0 ? AppColors.teal : AppColors.red,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                index == 0
+                                    ? 'Won against ProGamer'
+                                    : 'Lost to QuizMaster',
+                                style: AppTextStyles.bodyMd,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '2 mins ago',
+                                style: AppTextStyles.label.copyWith(
+                                  color: Colors.grey,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          index == 0 ? '+50 XP' : '+15 XP',
+                          style: AppTextStyles.label,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-      ],
-    ),
-    ),
+        );
+      },
     );
   }
 }
