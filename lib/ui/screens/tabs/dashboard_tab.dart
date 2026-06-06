@@ -10,6 +10,7 @@ import '../../../data/models/match_history_model.dart';
 import '../store_screen.dart';
 import '../../../core/utils/rank_calculator.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DashboardTab extends ConsumerWidget {
   const DashboardTab({super.key});
@@ -61,7 +62,17 @@ class DashboardTab extends ConsumerWidget {
                         backgroundColor: rankColor.withOpacity(0.1),
                         child: CircleAvatar(
                           radius: 32,
-                          backgroundImage: NetworkImage(user.avatarUrl ?? ''),
+                          backgroundColor: AppColors.surface,
+                          child: ClipOval(
+                            child: CachedNetworkImage(
+                              imageUrl: user.avatarUrl ?? '',
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => const CircularProgressIndicator(strokeWidth: 2),
+                              errorWidget: (context, url, error) => const Icon(Icons.person),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),

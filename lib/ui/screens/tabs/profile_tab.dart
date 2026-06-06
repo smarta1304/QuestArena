@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../providers/user_providers.dart';
@@ -47,7 +48,20 @@ class ProfileTab extends ConsumerWidget {
             child: Column(
               children: [
                 // Header
-                CircleAvatar(radius: 50, backgroundImage: NetworkImage(user.avatarUrl ?? '')),
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: AppColors.surface,
+                  child: ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: user.avatarUrl ?? '',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const CircularProgressIndicator(),
+                      errorWidget: (context, url, error) => const Icon(Icons.person, size: 40),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Text(user.username, style: AppTextStyles.headline),
                 Text(user.rank, style: AppTextStyles.label.copyWith(color: AppColors.gold)),

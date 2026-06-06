@@ -1,6 +1,8 @@
 // WHAT THIS FILE DOES:
 // Represents a single completed match record for the player's history.
 
+import 'package:flutter/foundation.dart';
+
 class MatchHistoryModel {
   final String matchId;
   final String opponentName;
@@ -34,7 +36,7 @@ class MatchHistoryModel {
         }
       }
     } catch (e) {
-      print('Error parsing date: $e');
+      debugPrint('Error parsing date: $e');
     }
 
     return MatchHistoryModel(

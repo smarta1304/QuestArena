@@ -6,6 +6,7 @@
 // • Conditional Layouts: Different colors and text based on whether the user won or lost.
 // • Navigation: Returning the user back to the main Hub (HomeScreen).
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
@@ -87,9 +88,9 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
         ref.read(userRepositoryProvider).saveMatchHistory(currentUser.uid, history),
       ]);
       
-      print('All rewards and history saved successfully!');
+      debugPrint('All rewards and history saved successfully!');
     } catch (e) {
-      print('Error claiming rewards: $e');
+      debugPrint('Error claiming rewards: $e');
     } finally {
       if (mounted) {
         setState(() => _rewardsClaimed = true);
