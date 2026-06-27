@@ -1,6 +1,8 @@
 // WHAT THIS FILE DOES:
 // The "Source of Truth" for a live 1v1 match.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class GameRoomModel {
   final String roomId;
   final String roomCode;
@@ -27,6 +29,7 @@ class GameRoomModel {
   // Disconnect & Forfeit Fields
   final Map<String, dynamic> presence;
   final String? forfeitWinnerId;
+  final DateTime? questionStartTime; // Source of truth for 15s timer
 
   GameRoomModel({
     required this.roomId,
@@ -50,6 +53,7 @@ class GameRoomModel {
     this.arenaBreakerStatusMessage,
     this.presence = const {},
     this.forfeitWinnerId,
+    this.questionStartTime,
   });
 
   factory GameRoomModel.fromJson(Map<String, dynamic> json) {
@@ -77,6 +81,9 @@ class GameRoomModel {
       arenaBreakerStatusMessage: json['arenaBreakerStatusMessage'],
       presence: Map<String, dynamic>.from(json['presence'] ?? {}),
       forfeitWinnerId: json['forfeitWinnerId'],
+      questionStartTime: json['questionStartTime'] != null 
+          ? (json['questionStartTime'] as Timestamp).toDate() 
+          : null,
     );
   }
 
@@ -102,5 +109,6 @@ class GameRoomModel {
     'arenaBreakerStatusMessage': arenaBreakerStatusMessage,
     'presence': presence,
     'forfeitWinnerId': forfeitWinnerId,
+    'questionStartTime': questionStartTime != null ? Timestamp.fromDate(questionStartTime!) : null,
   };
 }

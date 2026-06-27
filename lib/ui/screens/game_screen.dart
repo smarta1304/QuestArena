@@ -1,6 +1,6 @@
 // WHAT THIS FILE DOES:
 // Optimized core quiz screen. Isolated rebuilds for maximum performance.
-// Includes Arena Breaker tie-breaker mode and Disconnect/Forfeit handling.
+// Includes Arena Breaker tie-breaker mode and Robust Disconnect/Forfeit handling.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -33,33 +33,28 @@ class _GameScreenState extends ConsumerState<GameScreen>
   int _processedIndex = -1;
   bool _hasUsedFiftyFifty = false;
 
-  // Arena Breaker state
-  bool _showABIntro = true;
-
-  // Forfeit/Disconnect state
-  int _forfeitCountdown = 20;
+  // Heartbeat & Disconnect state
+  Timer? _heartbeatTimer;
   Timer? _forfeitTimer;
+  int _forfeitCountdown = 20;
   bool _isOpponentDisconnected = false;
+  bool _showABIntro = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startHeartbeat();
     _updatePresence(true);
 
     _timerController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 15),
-    )..reverse(from: 1.0);
+    );
 
     _timerController.addStatusListener((status) {
       if (status == AnimationStatus.dismissed && !_hasAnswered) {
-        final room = ref.read(gameRoomProvider(widget.roomId)).value;
-        if (room?.status == 'arena_breaker') {
-          _handleABAnswerSelection("TIMEOUT");
-        } else {
-          _handleAnswerSelection("TIMEOUT");
-        }
+        _onTimerExpired();
       }
     });
   }
@@ -67,8 +62,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _updatePresence(false);
+    _heartbeatTimer?.cancel();
     _forfeitTimer?.cancel();
+    _updatePresence(false);
     _timerController.dispose();
     super.dispose();
   }
@@ -82,10 +78,26 @@ class _GameScreenState extends ConsumerState<GameScreen>
     }
   }
 
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _updatePresence(true);
+    });
+  }
+
   void _updatePresence(bool isOnline) {
     final user = ref.read(currentUserProvider).value;
     if (user != null) {
       ref.read(gameRepositoryProvider).updatePresence(widget.roomId, user.uid, isOnline);
+    }
+  }
+
+  void _onTimerExpired() {
+    final room = ref.read(gameRoomProvider(widget.roomId)).value;
+    if (room?.status == 'arena_breaker') {
+      _handleABAnswerSelection("TIMEOUT");
+    } else {
+      _handleAnswerSelection("TIMEOUT");
     }
   }
 
@@ -139,6 +151,31 @@ class _GameScreenState extends ConsumerState<GameScreen>
     }
   }
 
+  void _syncTimer(GameRoomModel room) {
+    if (room.questionStartTime == null) return;
+
+    final now = DateTime.now();
+    final elapsed = now.difference(room.questionStartTime!).inMilliseconds;
+    final remainingMs = 15000 - elapsed;
+
+    if (remainingMs <= 0) {
+      if (!_hasAnswered && _timerController.isAnimating) {
+        _timerController.stop();
+        _onTimerExpired();
+      }
+      return;
+    }
+
+    // Update timer animation if it's out of sync (more than 500ms diff)
+    final targetValue = remainingMs / 15000.0;
+    if ((_timerController.value - targetValue).abs() > 0.05 || !_timerController.isAnimating) {
+      if (!_hasAnswered) {
+        _timerController.duration = Duration(milliseconds: remainingMs);
+        _timerController.reverse(from: targetValue);
+      }
+    }
+  }
+
   void _prepareOptions(GameRoomModel room) {
     if (_lastQuestionIndex != room.currentQuestionIndex) {
       final question = room.questions[room.currentQuestionIndex];
@@ -157,7 +194,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
             _hasAnswered = false;
             _selectedAnswer = null;
           });
-          _timerController.reverse(from: 1.0);
         }
       });
     }
@@ -245,13 +281,12 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final user = ref.watch(currentUserProvider).value;
     if (user == null) return const Scaffold();
 
-    // Listen for room updates
     ref.listen<AsyncValue<GameRoomModel?>>(gameRoomProvider(widget.roomId), (prev, next) {
       final room = next.value;
       if (room == null) return;
 
-      // Handle match finish
       if (room.status == 'finished') {
+        _heartbeatTimer?.cancel();
         _forfeitTimer?.cancel();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => ResultScreen(room: room)),
@@ -259,29 +294,31 @@ class _GameScreenState extends ConsumerState<GameScreen>
         return;
       }
 
-      // Presence Detection (Only if game is active or in AB)
-      if (room.status == 'active' || room.status == 'arena_breaker') {
-        final String p1Uid = room.player1['uid'] ?? '';
-        final String? p2Uid = room.player2?['uid'];
-        final String? opponentId = user.uid == p1Uid ? p2Uid : p1Uid;
+      // Sync timer on every update if not answered
+      if (!_hasAnswered) _syncTimer(room);
 
-        if (opponentId != null) {
-          final opponentPresence = room.presence[opponentId];
-          final isOnline = opponentPresence?['isOnline'] ?? true;
+      // Presence Detection
+      final String p1Uid = room.player1['uid'] ?? '';
+      final String? p2Uid = room.player2?['uid'];
+      final String? opponentId = user.uid == p1Uid ? p2Uid : p1Uid;
 
-          if (!isOnline && !_isOpponentDisconnected) {
-            setState(() => _isOpponentDisconnected = true);
-            _startForfeitTimer();
-          } else if (isOnline && _isOpponentDisconnected) {
-            setState(() => _isOpponentDisconnected = false);
-            _forfeitTimer?.cancel();
-          }
+      if (opponentId != null) {
+        final opponentPresence = room.presence[opponentId];
+        final lastSeen = opponentPresence?['lastSeen'] as DateTime?;
+        final isOnline = opponentPresence?['isOnline'] ?? true;
+        
+        bool disconnected = !isOnline;
+        if (lastSeen != null) {
+          final diff = DateTime.now().difference(lastSeen).inSeconds;
+          if (diff > 15) disconnected = true;
         }
-      } else {
-        // If match not active/AB, hide disconnect banner
-        _forfeitTimer?.cancel();
-        if (_isOpponentDisconnected) {
+
+        if (disconnected && !_isOpponentDisconnected) {
+          setState(() => _isOpponentDisconnected = true);
+          _startForfeitTimer();
+        } else if (!disconnected && _isOpponentDisconnected) {
           setState(() => _isOpponentDisconnected = false);
+          _forfeitTimer?.cancel();
         }
       }
     });
@@ -316,23 +353,32 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
             return Stack(
               children: [
-                // Main Game UI
                 _buildMainUI(room),
 
-                // Opponent Disconnect Banner
                 if (_isOpponentDisconnected)
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
                     child: Container(
-                      color: AppColors.red.withValues(alpha: 0.9),
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      color: AppColors.red.withValues(alpha: 0.95),
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                      child: Row(
                         children: [
-                          const Text('Opponent disconnected.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                          Text('Ending match in $_forfeitCountdown seconds...', style: const TextStyle(fontSize: 12, color: Colors.white)),
+                          const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Opponent disconnected.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                                Text('Winning by forfeit in $_forfeitCountdown seconds...', style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const CircularProgressIndicator(strokeWidth: 2, color: Colors.white24, value: null),
                         ],
                       ),
                     ).animate().slideY(begin: -1, end: 0),
@@ -382,7 +428,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              // Header with scores
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -408,7 +453,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
               ),
               const SizedBox(height: 40),
 
-              // Timer bar
               RepaintBoundary(
                 child: AnimatedBuilder(
                   animation: _timerController,
@@ -438,7 +482,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
               ),
               const SizedBox(height: 24),
 
-              // Question Text
               Text(
                 qText,
                 style: AppTextStyles.headline,
@@ -450,7 +493,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
               const SizedBox(height: 40),
 
-              // Shuffled Options
               ..._shuffledOptions
                   .where((option) => !_fiftyFiftyHiddenOptions.contains(option))
                   .map((option) {
@@ -513,14 +555,12 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 _hasAnswered = false;
                 _selectedAnswer = null;
               });
-              _timerController.reverse(from: 1.0);
             }),
           ],
         ).animate().fadeIn(),
       );
     }
 
-    // Display round-specific messages (Both wrong / Perfect Tie)
     if (room.arenaBreakerStatusMessage != null) {
       return Center(
         child: Column(
@@ -551,12 +591,11 @@ class _GameScreenState extends ConsumerState<GameScreen>
       return const Center(child: CircularProgressIndicator(color: AppColors.red));
     }
 
-    // Reset options for AB round if needed
     if (_shuffledOptions.isEmpty || _lastQuestionIndex != -99) {
       _shuffledOptions = List<String>.from(question['incorrect_answers'])
         ..add(question['correct_answer'])
         ..shuffle();
-      _lastQuestionIndex = -99; // Special index for AB
+      _lastQuestionIndex = -99;
     }
 
     final qText = GameUtils.decodeHtmlEntities(question['question']);
@@ -633,7 +672,6 @@ class _PowerupButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disabled = isUsed || isDisabled;
-
     return GestureDetector(
       onTap: disabled ? null : onTap,
       child: AnimatedOpacity(
