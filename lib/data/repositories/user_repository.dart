@@ -59,6 +59,13 @@ class UserRepository {
     await FirebaseFirestore.instance.collection('users').doc(uid).delete();
   }
 
+  Future<void> updateAvatarUrl(String uid, String avatarUrl) async {
+    await _service.setData(
+      path: 'users/$uid',
+      data: {'avatarUrl': avatarUrl},
+    );
+  }
+
   Future<void> updateUserStats({
     required String uid,
     required int xpGained,
