@@ -12,6 +12,9 @@ import '../../../providers/matchmaking_providers.dart';
 import '../../widgets/neon_swirl_background.dart';
 import '../matchmaking_screen.dart';
 import '../private_room_screen.dart';
+import '../practice_screen.dart';
+import '../../widgets/category_picker_sheet.dart';
+import '../../../features/practice/screens/practice_setup_screen.dart';
 
 class BattleTab extends ConsumerStatefulWidget {
   const BattleTab({super.key});
@@ -233,6 +236,81 @@ class _BattleTabState extends ConsumerState<BattleTab>
                 ),
               ],
             ),
+  Future<void> _chooseAndStartMatch() async {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    final category = await CategoryPickerSheet.show(context);
+    if (category == null || !mounted) return;
+
+    setState(() => _isStartingMatch = true);
+    try {
+      final ticket = MatchmakingModel(
+        uid: user.uid,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        rank: user.rank,
+        categoryId: category.id,
+        categoryName: category.name,
+        searchStartedAt: DateTime.now(),
+      );
+      await ref.read(matchmakingRepositoryProvider).startSearching(ticket);
+      if (mounted) {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const MatchmakingScreen()));
+      }
+    } finally {
+      if (mounted) setState(() => _isStartingMatch = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('BATTLE HUB', style: AppTextStyles.display),
+              Text('Select your challenge', style: AppTextStyles.label),
+              
+              const SizedBox(height: 40),
+              
+              _BattleModeCard(
+                title: 'RANKED MATCH',
+                subtitle: _isStartingMatch ? 'Starting...' : 'Compete for XP and Rank',
+                icon: _isStartingMatch ? Icons.hourglass_bottom_rounded : Icons.flash_on_rounded,
+                color: AppColors.purple,
+                onTap: _isStartingMatch ? () {} : _chooseAndStartMatch,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              _BattleModeCard(
+                title: 'PRIVATE DUEL',
+                subtitle: 'Play against a friend',
+                icon: Icons.vpn_key_rounded,
+                color: AppColors.gold,
+                onTap: _isStartingMatch ? () {} : () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivateRoomScreen()));
+                },
+              ),
+              
+              const SizedBox(height: 16),
+              
+              _BattleModeCard(
+                title: 'PRACTICE',
+                subtitle: 'Sharpen your skills (No XP)',
+                icon: Icons.psychology_rounded,
+                color: AppColors.teal,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PracticeScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PracticeSetupScreen()));
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -320,6 +398,20 @@ class _ArenaModeCardState extends State<_ArenaModeCard>
             border: Border.all(
               color: _isPressed ? c.withOpacity(0.6) : c.withOpacity(0.25),
               width: _isPressed ? 1.2 : 0.6,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.surface),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 32),
             ),
             boxShadow: [
               BoxShadow(

@@ -61,6 +61,27 @@ class _SplashScreenState extends State<SplashScreen>
                     fontFamily: 'Orbitron', // Using a sophisticated font if available, else default bold
                   ),
                 )
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo Icon
+            const Icon(
+              Icons.shield_rounded,
+              size: 100,
+              color: AppColors.gold,
+            )
+                .animate()
+                .fade(duration: 800.ms)
+                .scale(delay: 200.ms, curve: Curves.elasticOut),
+
+            const SizedBox(height: 24),
+
+            // App Name
+            Text(
+              'QUESTARENA',
+              style: AppTextStyles.display.copyWith(letterSpacing: 4),
+            )
                 .animate()
                 .fadeIn(duration: 1500.ms, curve: Curves.easeIn)
                 .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.0, 1.0), duration: 2000.ms),
