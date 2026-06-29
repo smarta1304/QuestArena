@@ -24,6 +24,12 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
     _initMatch();
   }
 
+  @override
+  void dispose() {
+    _aiTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initMatch() async {
     List<Map<String, dynamic>> questions = [];
     try {
@@ -76,18 +82,16 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
 
     // Simulate AI answer
     _aiService.simulateAnswer(_session.difficulty).then((result) {
-      if (!mounted || state == null) return;
+      if (!mounted || state == null || state!.status == 'finished') return;
       
       final isCorrect = result['isCorrect'] as bool;
-      
-      // Calculate bot score
       final delayMs = result['delayMs'] as int;
       
       // Calculate bot score
       final remainingMs = 15000 - delayMs;
       int score = 0;
       if (isCorrect && remainingMs > 0) {
-        score = 10 + (remainingMs / 3000).floor(); // Simple local math
+        score = 10 + (remainingMs / 3000).floor();
       }
 
       final question = state!.questions[state!.currentQuestionIndex];
@@ -102,9 +106,10 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
     if (currentRoom == null || currentRoom.status == 'finished') return;
 
     final isP1 = userId == currentRoom.player1['uid'];
-    final playerKey = isP1 ? 'player1' : 'player2';
     
-    final currentAnswers = List<String>.from(currentRoom.toJson()[playerKey]['answers'] ?? []);
+    final playerMap = Map<String, dynamic>.from(isP1 ? currentRoom.player1 : currentRoom.player2!);
+    final currentAnswers = List<String>.from(playerMap['answers'] ?? []);
+    
     if (currentAnswers.length > currentRoom.currentQuestionIndex) return;
 
     while (currentAnswers.length < currentRoom.currentQuestionIndex) {
@@ -112,16 +117,15 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
     }
     currentAnswers.add(answer);
 
-    final updatedPlayer = Map<String, dynamic>.from(currentRoom.toJson()[playerKey]);
-    updatedPlayer['answers'] = currentAnswers;
-    updatedPlayer['score'] = (updatedPlayer['score'] ?? 0) + score;
+    playerMap['answers'] = currentAnswers;
+    playerMap['score'] = (playerMap['score'] ?? 0) + score;
 
-    final newState = GameRoomModel.fromJson({
-      ...currentRoom.toJson(),
-      playerKey: updatedPlayer,
-    });
-
-    state = newState;
+    if (isP1) {
+      state = currentRoom.copyWith(player1: playerMap);
+    } else {
+      state = currentRoom.copyWith(player2: playerMap);
+    }
+    
     _checkProgression();
   }
 
@@ -133,11 +137,10 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
 
     if (p1Len > currentIdx && p2Len > currentIdx) {
       if (currentIdx + 1 < room.questions.length) {
-        state = GameRoomModel.fromJson({
-          ...room.toJson(),
-          'currentQuestionIndex': currentIdx + 1,
-          'questionStartedAt': DateTime.now().toIso8601String(),
-        });
+        state = room.copyWith(
+          currentQuestionIndex: currentIdx + 1,
+          questionStartedAt: DateTime.now(),
+        );
         _startAIRound();
       } else {
         _finishMatch();
@@ -151,19 +154,16 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
     final p2Score = room.player2?['score'] ?? 0;
 
     if (p1Score == p2Score) {
-      // Arena Breaker
       _triggerArenaBreaker();
     } else {
-      state = GameRoomModel.fromJson({
-        ...room.toJson(),
-        'status': 'finished',
-        'winnerId': p1Score > p2Score ? room.player1['uid'] : room.player2?['uid'],
-      });
+      state = room.copyWith(
+        status: 'finished',
+        winnerId: p1Score > p2Score ? room.player1['uid'] : room.player2?['uid'],
+      );
     }
   }
 
   Future<void> _triggerArenaBreaker() async {
-    // Reuse logic to fetch 1 question
     List<Map<String, dynamic>> abQuestions = [];
     try {
       final response = await _dio.get(ApiConstants.triviaUrlForCategory(null, amount: 1));
@@ -178,14 +178,13 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
       abQuestions = [GameUtils.getFallbackQuestions().first];
     }
 
-    state = GameRoomModel.fromJson({
-      ...state!.toJson(),
-      'status': 'arena_breaker',
-      'isArenaBreaker': true,
-      'arenaBreakerQuestion': abQuestions.first,
-      'arenaBreakerSubmissions': {},
-      'questionStartedAt': DateTime.now().toIso8601String(),
-    });
+    state = state!.copyWith(
+      status: 'arena_breaker',
+      isArenaBreaker: true,
+      arenaBreakerQuestion: abQuestions.first,
+      arenaBreakerSubmissions: {},
+      questionStartedAt: DateTime.now(),
+    );
 
     _startABAIRound();
   }
@@ -195,9 +194,6 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
       if (!mounted || state == null || state!.status != 'arena_breaker') return;
       
       final isCorrect = result['isCorrect'] as bool;
-      
-      // Calculate bot score
-      final delayMs = result['delayMs'] as int;
       final question = state!.arenaBreakerQuestion!;
       final answer = isCorrect ? question['correct_answer'] : (question['incorrect_answers'] as List).first;
 
@@ -221,12 +217,8 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
 
-    state = GameRoomModel.fromJson({
-      ...room.toJson(),
-      'arenaBreakerSubmissions': submissions,
-    });
+    state = room.copyWith(arenaBreakerSubmissions: submissions);
 
-    // Check for AB winner
     if (submissions.length == 2 || isCorrect) {
       final s1 = submissions[room.player1['uid']];
       final s2 = submissions['bot_id'];
@@ -239,24 +231,21 @@ class PracticeController extends StateNotifier<GameRoomModel?> {
       } else if (s1 != null && s2 != null && s1['isCorrect'] && s2['isCorrect']) {
         winnerId = (s1['timestamp'] < s2['timestamp']) ? room.player1['uid'] : 'bot_id';
       } else if (submissions.length == 2) {
-        // Both wrong -> new round
         _triggerArenaBreaker();
         return;
       }
 
       if (winnerId != null) {
-        state = GameRoomModel.fromJson({
-          ...state!.toJson(),
-          'status': 'finished',
-          'winnerId': winnerId,
-          'isArenaBreakerWin': true,
-        });
+        state = state!.copyWith(
+          status: 'finished',
+          winnerId: winnerId,
+          isArenaBreakerWin: true,
+        );
       }
     }
   }
 
   void forceAdvance() {
-    // If user timed out, we submit TIMEOUT for them
     final user = _ref.read(currentUserProvider).value;
     if (user != null) {
       submitAnswer(user.uid, 'TIMEOUT', 0);

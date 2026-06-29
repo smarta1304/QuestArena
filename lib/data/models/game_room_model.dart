@@ -64,7 +64,9 @@ class GameRoomModel {
       questions: List<dynamic>.from(json['questions'] ?? []),
       currentQuestionIndex: json['currentQuestionIndex'] ?? 0,
       questionStartedAt: json['questionStartedAt'] != null 
-          ? (json['questionStartedAt'] as Timestamp).toDate() 
+          ? (json['questionStartedAt'] is Timestamp 
+              ? (json['questionStartedAt'] as Timestamp).toDate() 
+              : DateTime.tryParse(json['questionStartedAt'].toString()))
           : null,
       winnerId: json['winnerId'],
       claimedRewards: List<String>.from(json['claimedRewards'] ?? []),
@@ -105,4 +107,41 @@ class GameRoomModel {
     'presence': presence,
     'forfeitWinnerId': forfeitWinnerId,
   };
+
+  GameRoomModel copyWith({
+    String? status,
+    Map<String, dynamic>? player1,
+    Map<String, dynamic>? player2,
+    int? currentQuestionIndex,
+    DateTime? questionStartedAt,
+    String? winnerId,
+    bool? isArenaBreaker,
+    Map<String, dynamic>? arenaBreakerQuestion,
+    Map<String, dynamic>? arenaBreakerSubmissions,
+    bool? isArenaBreakerWin,
+  }) {
+    return GameRoomModel(
+      roomId: roomId,
+      roomCode: roomCode,
+      status: status ?? this.status,
+      player1: player1 ?? this.player1,
+      player2: player2 ?? this.player2,
+      questions: questions,
+      currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
+      questionStartedAt: questionStartedAt ?? this.questionStartedAt,
+      winnerId: winnerId ?? this.winnerId,
+      claimedRewards: claimedRewards,
+      rematchRequests: rematchRequests,
+      nextMatchId: nextMatchId,
+      categoryId: categoryId,
+      categoryName: categoryName,
+      isArenaBreaker: isArenaBreaker ?? this.isArenaBreaker,
+      arenaBreakerQuestion: arenaBreakerQuestion ?? this.arenaBreakerQuestion,
+      arenaBreakerSubmissions: arenaBreakerSubmissions ?? this.arenaBreakerSubmissions,
+      isArenaBreakerWin: isArenaBreakerWin ?? this.isArenaBreakerWin,
+      arenaBreakerStatusMessage: arenaBreakerStatusMessage,
+      presence: presence,
+      forfeitWinnerId: forfeitWinnerId,
+    );
+  }
 }

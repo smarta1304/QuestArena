@@ -135,9 +135,11 @@ class _PracticeGameScreenState extends ConsumerState<PracticeGameScreen> with Si
     // Navigation on finish
     if (room.status == 'finished') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => ResultScreen(room: room, isPractice: true)),
-        );
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ResultScreen(room: room, isPractice: true)),
+          );
+        }
       });
     }
 
@@ -152,9 +154,15 @@ class _PracticeGameScreenState extends ConsumerState<PracticeGameScreen> with Si
         centerTitle: true,
         leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
       ),
-      body: room.status == 'arena_breaker' 
-          ? _buildArenaBreakerUI(room) 
-          : _buildGameUI(room),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+          child: room.status == 'arena_breaker' 
+              ? _buildArenaBreakerUI(room) 
+              : _buildGameUI(room),
+        ),
+      ),
     );
   }
 
@@ -164,32 +172,27 @@ class _PracticeGameScreenState extends ConsumerState<PracticeGameScreen> with Si
     final question = room.questions[room.currentQuestionIndex];
     final qText = GameUtils.decodeHtmlEntities(question['question']);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            _buildScores(room),
-            const SizedBox(height: 40),
-            _buildTimerBar(),
-            const SizedBox(height: 40),
-            Text(qText, style: AppTextStyles.headline, textAlign: TextAlign.center)
-                .animate(key: ValueKey(room.currentQuestionIndex))
-                .fadeIn(),
-            const SizedBox(height: 40),
-            ..._shuffledOptions.map((opt) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _AnswerButton(
-                text: GameUtils.decodeHtmlEntities(opt),
-                isSelected: _selectedAnswer == opt,
-                isCorrect: _hasAnswered && opt == question['correct_answer'],
-                isWrong: _hasAnswered && _selectedAnswer == opt && opt != question['correct_answer'],
-                onTap: () => _onAnswerSelected(opt, room),
-              ),
-            )),
-          ],
-        ),
-      ),
+    return Column(
+      children: [
+        _buildScores(room),
+        const SizedBox(height: 32),
+        _buildTimerBar(),
+        const SizedBox(height: 32),
+        Text(qText, style: AppTextStyles.headline, textAlign: TextAlign.center)
+            .animate(key: ValueKey(room.currentQuestionIndex))
+            .fadeIn(),
+        const SizedBox(height: 32),
+        ..._shuffledOptions.map((opt) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _AnswerButton(
+            text: GameUtils.decodeHtmlEntities(opt),
+            isSelected: _selectedAnswer == opt,
+            isCorrect: _hasAnswered && opt == question['correct_answer'],
+            isWrong: _hasAnswered && _selectedAnswer == opt && opt != question['correct_answer'],
+            onTap: () => _onAnswerSelected(opt, room),
+          ),
+        )),
+      ],
     );
   }
 
@@ -199,29 +202,24 @@ class _PracticeGameScreenState extends ConsumerState<PracticeGameScreen> with Si
     
     final qText = GameUtils.decodeHtmlEntities(question['question']);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const Text('⚔ ARENA BREAKER ⚔', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.red)),
-            const SizedBox(height: 40),
-            _buildTimerBar(),
-            const SizedBox(height: 40),
-            Text(qText, style: AppTextStyles.headline, textAlign: TextAlign.center).animate().fadeIn(),
-            const SizedBox(height: 40),
-            ..._shuffledOptions.map((opt) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _AnswerButton(
-                text: GameUtils.decodeHtmlEntities(opt),
-                isSelected: _selectedAnswer == opt,
-                onTap: () => _handleABAnswer(opt, room),
-                isCorrect: false, isWrong: false,
-              ),
-            )),
-          ],
-        ),
-      ),
+    return Column(
+      children: [
+        const Text('⚔ ARENA BREAKER ⚔', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.red)),
+        const SizedBox(height: 32),
+        _buildTimerBar(),
+        const SizedBox(height: 32),
+        Text(qText, style: AppTextStyles.headline, textAlign: TextAlign.center).animate().fadeIn(),
+        const SizedBox(height: 32),
+        ..._shuffledOptions.map((opt) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _AnswerButton(
+            text: GameUtils.decodeHtmlEntities(opt),
+            isSelected: _selectedAnswer == opt,
+            onTap: () => _handleABAnswer(opt, room),
+            isCorrect: false, isWrong: false,
+          ),
+        )),
+      ],
     );
   }
 
