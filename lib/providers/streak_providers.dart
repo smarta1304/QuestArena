@@ -6,5 +6,5 @@ final streakRepositoryProvider = Provider((ref) => StreakRepository());
 
 final streakServiceProvider = Provider((ref) {
   final repo = ref.watch(streakRepositoryProvider);
-  return StreakService(repo);
+  return StreakService(repo, ref);
 });

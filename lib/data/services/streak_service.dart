@@ -1,11 +1,14 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../repositories/streak_repository.dart';
 import '../../core/errors/result.dart';
+import '../../providers/achievement_providers.dart';
 
 class StreakService {
   final StreakRepository _repository;
+  final Ref _ref;
 
-  StreakService(this._repository);
+  StreakService(this._repository, this._ref);
 
   /// Logic to handle daily login streak.
   Future<Result<int>> checkAndUpdateLoginStreak(UserModel user) async {
@@ -28,12 +31,19 @@ class StreakService {
     bool shouldReward = newStreak == 7;
     int finalStreak = shouldReward ? 0 : newStreak; // Reset to 0 after 7 as per requirements
 
-    return await _repository.processLoginStreakTransaction(
+    final result = await _repository.processLoginStreakTransaction(
       uid: user.uid,
       newStreak: finalStreak,
       shouldReward: shouldReward,
       rewardAmount: 200,
     );
+
+    if (result is Success<int>) {
+      // Trigger achievement check with the ACTUAL streak (before possible reset to 0)
+      _ref.read(achievementServiceProvider).updateLoginStreakProgress(user.uid, newStreak);
+    }
+
+    return result;
   }
 
   /// Logic to handle win streak after a match.

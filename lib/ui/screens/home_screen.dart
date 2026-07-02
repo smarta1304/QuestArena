@@ -72,9 +72,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final streakResult = await streakService.checkAndUpdateLoginStreak(user);
 
     if (streakResult is Success<int>) {
-       // Trigger achievement check
-       ref.read(achievementServiceProvider).updateLoginStreakProgress(user.uid, streakResult.data);
-       
        if (mounted && streakResult.data > 0) {
         showDialog(
           context: context,

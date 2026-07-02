@@ -2,10 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/text_styles.dart';
-import '../../core/constants/avatars.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../data/models/user_model.dart';
@@ -21,7 +19,6 @@ class CreateProfileScreen extends ConsumerStatefulWidget {
 
 class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
   final _usernameController = TextEditingController();
-  late String _selectedAvatar = AppAvatars.avatars[0].url;
   bool _isLoading = false;
 
   Future<void> _saveProfile() async {
@@ -37,18 +34,12 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
     final currentUser = ref.read(authStateProvider).value;
 
     if (currentUser != null) {
-      // Default unlocked avatars (Bronze)
-      final defaultUnlocked = AppAvatars.avatars
-          .where((a) => a.requiredLeague == 'Bronze')
-          .map((a) => a.url)
-          .toList();
-
       final newUser = UserModel(
         uid: currentUser.uid,
         email: currentUser.email ?? '',
         username: username,
-        avatarUrl: _selectedAvatar,
-        unlockedAvatars: defaultUnlocked,
+        avatarUrl: null, // Initial avatar is null, rank will determine it
+        unlockedAvatars: [],
       );
 
       final result = await ref.read(userRepositoryProvider).createUserProfile(newUser);
@@ -81,74 +72,8 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 children: [
                   Text('Initialize Profile', style: AppTextStyles.headline),
                   const SizedBox(height: 8),
-                  Text('Choose your warrior name and avatar',
+                  Text('Choose your warrior name to enter the arena',
                       style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary)),
-                  const SizedBox(height: 32),
-                  Text('SELECT AVATAR', style: AppTextStyles.label.copyWith(color: AppColors.gold)),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: AppAvatars.avatars.length,
-                    itemBuilder: (context, index) {
-                      final avatar = AppAvatars.avatars[index];
-                      final isSelected = _selectedAvatar == avatar.url;
-                      final isBronze = avatar.requiredLeague == 'Bronze';
-
-                      return GestureDetector(
-                        onTap: () {
-                          if (isBronze) {
-                            setState(() => _selectedAvatar = avatar.url);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Reach ${avatar.requiredLeague} League to unlock this avatar.'),
-                                backgroundColor: AppColors.red,
-                              ),
-                            );
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                                color: isSelected ? AppColors.gold : Colors.transparent, width: 3),
-                          ),
-                          child: CircleAvatar(
-                            radius: 40,
-                            backgroundColor: AppColors.surface,
-                            child: ClipOval(
-                              child: Stack(
-                                children: [
-                                  CachedNetworkImage(
-                                    imageUrl: avatar.url,
-                                    width: 80,
-                                    height: 80,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => const CircularProgressIndicator(strokeWidth: 2),
-                                    errorWidget: (context, url, error) => const Icon(Icons.person),
-                                  ),
-                                  if (!isBronze)
-                                    Positioned.fill(
-                                      child: Container(
-                                        color: Colors.black.withValues(alpha: 0.4),
-                                        child: const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                   const SizedBox(height: 32),
                   CustomTextField(
                     controller: _usernameController,

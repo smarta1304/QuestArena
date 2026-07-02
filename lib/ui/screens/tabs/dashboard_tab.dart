@@ -143,6 +143,7 @@ class _DashboardTabState extends ConsumerState<DashboardTab> with TickerProvider
                 children: [
                   SmartAvatar(
                     avatarUrl: user.avatarUrl,
+                    rank: user.rank,
                     size: 80,
                     showGlow: true,
                   ),

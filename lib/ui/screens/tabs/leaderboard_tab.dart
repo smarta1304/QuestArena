@@ -72,6 +72,7 @@ class LeaderboardTab extends ConsumerWidget {
                           SizedBox(width: 40, child: _RankBadge(index: index)),
                           SmartAvatar(
                             avatarUrl: player.avatarUrl,
+                            rank: player.rank,
                             size: 40,
                             showBorder: false,
                           ),
@@ -146,6 +147,7 @@ class _MvpCard extends StatelessWidget {
             children: [
               SmartAvatar(
                 avatarUrl: player.avatarUrl,
+                rank: player.rank,
                 size: 80,
                 showGlow: true,
                 showBorder: true,

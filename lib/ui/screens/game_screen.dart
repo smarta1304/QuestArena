@@ -475,6 +475,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         _PlayerStat(
           name: myData?['username'] ?? 'Me', 
           avatarUrl: myData?['avatarUrl'],
+          rank: myData?['rank'],
           score: myData?['score'] ?? 0, 
           isLeft: true,
           hasAnswered: isP1 ? (room.player1['answers'] as List).length > room.currentQuestionIndex : (room.player2?['answers'] as List? ?? []).length > room.currentQuestionIndex,
@@ -493,6 +494,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         _PlayerStat(
           name: opData?['username'] ?? '...', 
           avatarUrl: opData?['avatarUrl'],
+          rank: opData?['rank'],
           score: opData?['score'] ?? 0, 
           isLeft: false,
           hasAnswered: !isP1 ? (room.player1['answers'] as List).length > room.currentQuestionIndex : (room.player2?['answers'] as List? ?? []).length > room.currentQuestionIndex,
@@ -755,6 +757,7 @@ class _EmojiPickerButton extends StatelessWidget {
 class _PlayerStat extends StatelessWidget {
   final String name;
   final String? avatarUrl;
+  final String? rank;
   final int score;
   final bool isLeft;
   final bool hasAnswered;
@@ -762,6 +765,7 @@ class _PlayerStat extends StatelessWidget {
   const _PlayerStat({
     required this.name, 
     this.avatarUrl, 
+    this.rank,
     required this.score, 
     required this.isLeft,
     required this.hasAnswered,
@@ -775,6 +779,7 @@ class _PlayerStat extends StatelessWidget {
       children: [
         SmartAvatar(
           avatarUrl: avatarUrl,
+          rank: rank,
           size: 44,
           showBorder: true,
           showGlow: score > 50,

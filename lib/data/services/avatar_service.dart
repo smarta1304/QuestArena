@@ -19,11 +19,11 @@ class AvatarService {
 
       final eligibleAvatars = AppAvatars.avatars.where((avatar) {
         return _isLeagueEligible(currentLeague, avatar.requiredLeague);
-      }).map((a) => a.url).toList();
+      }).map((a) => a.image).toList();
 
       bool changed = false;
-      for (final url in eligibleAvatars) {
-        if (currentlyUnlocked.add(url)) {
+      for (final image in eligibleAvatars) {
+        if (currentlyUnlocked.add(image)) {
           changed = true;
         }
       }
@@ -44,8 +44,8 @@ class AvatarService {
       'Bronze': 1,
       'Silver': 2,
       'Gold': 3,
-      'Diamond': 4,
-      'Platinum': 5,
+      'Platinum': 4,
+      'Diamond': 5,
       'Master': 6,
       'Champion': 7,
       'Legend': 8,
@@ -58,13 +58,13 @@ class AvatarService {
   }
 
   /// Manually select a new avatar if it's unlocked.
-  Future<void> selectAvatar(String uid, String avatarUrl, List<String> unlockedAvatars) async {
-    if (!unlockedAvatars.contains(avatarUrl)) {
-      throw Exception("This avatar is locked. You need a higher league rank.");
+  Future<void> selectAvatar(String uid, String avatarImage, List<String> unlockedAvatars) async {
+    if (!unlockedAvatars.contains(avatarImage)) {
+      throw Exception("This avatar is locked. Reach the required league to unlock.");
     }
 
     await _db.collection('users').doc(uid).update({
-      'avatarUrl': avatarUrl,
+      'avatarUrl': avatarImage,
     });
   }
 
@@ -74,7 +74,7 @@ class AvatarService {
 
     for (final avatar in AppAvatars.avatars) {
       if (_isLeagueEligible(currentLeague, avatar.requiredLeague)) {
-        unlockedSet.add(avatar.url);
+        unlockedSet.add(avatar.image);
       }
     }
 

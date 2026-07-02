@@ -101,6 +101,7 @@ class MatchmakingScreen extends ConsumerWidget {
                     if (user != null)
                       SmartAvatar(
                         avatarUrl: user.avatarUrl,
+                        rank: user.rank,
                         size: 110,
                         showGlow: true,
                         showBorder: true,

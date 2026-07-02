@@ -254,6 +254,8 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
 
     final opponentAvatar = currentUser.uid == widget.room.player1['uid'] ? (widget.room.player2?['avatarUrl']) : widget.room.player1['avatarUrl'];
 
+    final opponentRank = currentUser.uid == widget.room.player1['uid'] ? (widget.room.player2?['rank'] ?? 'Bronze') : (widget.room.player1['rank'] ?? 'Bronze');
+
     return Scaffold(
       backgroundColor: AppColors.primaryBg,
       body: Stack(
@@ -346,7 +348,7 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                       _PlayerSummary(
                         username: opponentName,
                         avatarUrl: opponentAvatar,
-                        rank: 'Silver I',
+                        rank: opponentRank,
                         isWinner: !isWinner && !isDraw,
                       ),
                     ],
@@ -558,6 +560,7 @@ class _PlayerSummary extends StatelessWidget {
       children: [
         SmartAvatar(
           avatarUrl: avatarUrl,
+          rank: rank,
           size: 70,
           showGlow: isWinner,
           showBorder: true,

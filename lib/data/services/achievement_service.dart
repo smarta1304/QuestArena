@@ -42,19 +42,9 @@ class AchievementService {
 
   /// Updates progress for login-related achievements.
   Future<void> updateLoginStreakProgress(String uid, int streak) async {
-    // For login streak, we set the progress to the current streak value rather than incrementing.
-    // However, our updateAchievementProgress method uses increment.
-    // Let's modify the update logic for loginStreak to be absolute or handle it carefully.
-    // Given the current architecture, I'll update the repository to support absolute setting if needed,
-    // or just calculate the difference.
-    
-    // For simplicity, let's just use _updateByType with increment 1 when a new day is logged.
-    // But streak can reset. 
-    // Requirement: "Login for 2 consecutive days."
-    // If streak is 2, it should unlock.
-    
+    // For login streak, we sync to the current absolute streak value.
     if (streak >= 1) {
-       await _updateByType(uid, AchievementType.loginStreak, 1);
+      await _syncByType(uid, AchievementType.loginStreak, streak);
     }
   }
 

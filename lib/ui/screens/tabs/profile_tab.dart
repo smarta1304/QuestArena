@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/text_styles.dart';
@@ -10,6 +9,7 @@ import '../../../providers/achievement_providers.dart';
 import '../../../data/models/achievement_model.dart';
 import '../../../core/errors/result.dart';
 import '../../widgets/animated_coin_counter.dart';
+import '../../widgets/smart_avatar.dart';
 import '../avatar_selection_screen.dart';
 
 class ProfileTab extends ConsumerStatefulWidget {
@@ -78,6 +78,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                         ),
                         child: SmartAvatar(
                           avatarUrl: user.avatarUrl,
+                          rank: user.rank,
                           size: 100,
                           showBorder: false,
                         ),
@@ -90,29 +91,29 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                 Text(user.username, style: AppTextStyles.headline),
                 Text(user.rank.toUpperCase(), style: AppTextStyles.label.copyWith(color: AppColors.gold, letterSpacing: 2)),
 
+                const SizedBox(height: 12),
+                
+                // CHANGE AVATAR BUTTON
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AvatarSelectionScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: const Text('CHANGE AVATAR'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.gold,
+                    side: const BorderSide(color: AppColors.gold, width: 1.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    textStyle: AppTextStyles.label.copyWith(fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+
                 const SizedBox(height: 24),
                 
-                // Change Avatar Button
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const AvatarSelectionScreen())
-                  ),
-                  icon: const Icon(Icons.palette_rounded, size: 18),
-                  label: const Text('CHANGE AVATAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.cardBg,
-                    foregroundColor: AppColors.gold,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      side: const BorderSide(color: AppColors.surface),
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 200.ms),
-
-                const SizedBox(height: 32),
-
                 // Stats Summary
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -352,7 +353,6 @@ class _AchievementTile extends StatelessWidget {
       case AchievementType.loginStreak:
         return Icons.whatshot_rounded;
     }
-    return Icons.help_outline_rounded;
   }
 }
 
